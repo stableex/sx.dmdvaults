@@ -1,6 +1,6 @@
 # **`DMD Vaults`**
 
-> Peripheral functions for interacting with DMD Vaults
+> Functions for interacting with DMD Vaults
 
 ## Dependencies
 

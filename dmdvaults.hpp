@@ -9,6 +9,14 @@ namespace dmdvaults {
     const name id = "dmdvaults"_n;
     const name code = "dmddappvault"_n;
 
+    struct [[eosio::table("stat")]] currencystat {
+        asset       supply;
+        asset       max_supply;
+        name        issuer;
+
+        uint64_t primary_key() const { return supply.symbol.code().raw(); }
+    };
+    typedef eosio::multi_index< "stat"_n, currencystat > reserves;
 
     /**
      * ## STATIC `get_fee`
@@ -70,20 +78,14 @@ namespace dmdvaults {
     }
 
 namespace legacy {
+    //see https://eos.eosq.eosnation.io/tx/0ad709d9f17c6c6cfe5fd54fa7918b7f29f29b4a0db1d2b35c866559a41dcde8
 
     const name id = "dmd.legacy"_n;
     const name code = "eosdmdvaults"_n;
+    const name vault = "dvaultproxy1"_n;
 
     const extended_symbol DEOS { symbol{"DEOS",4}, "eosdmddtoken"_n };
 
-    struct [[eosio::table("stat")]] currencystat {
-        asset       supply;
-        asset       max_supply;
-        name        issuer;
-
-        uint64_t primary_key() const { return supply.symbol.code().raw(); }
-    };
-    typedef eosio::multi_index< "stat"_n, currencystat > reserves;
 
     struct [[eosio::table("rexbal")]] rex_balance {
         uint8_t     version;
@@ -155,12 +157,12 @@ namespace legacy {
     static pair<asset, asset> get_reserves( const symbol sort )
     {
         check(sort==EOS.get_symbol() || sort==DEOS.get_symbol(), "sx.dmdvaults: Only EOS/DEOS pair available");
-        dmdvaults::legacy::reserves _reserves( DEOS.get_contract(), DEOS.get_symbol().code().raw() );
+        dmdvaults::reserves _reserves( DEOS.get_contract(), DEOS.get_symbol().code().raw() );
 
         auto deos = _reserves.get( DEOS.get_symbol().code().raw(), "sx.dmdvaults: No DEOS row in eosdmddtoken stat table" ).supply;
-        auto eos  = eosio::token::get_balance( EOS.get_contract(), "dvaultproxy1"_n, EOS.get_symbol().code() );
+        auto eos  = eosio::token::get_balance( EOS.get_contract(), dmdvaults::legacy::vault, EOS.get_symbol().code() );
 
-        eos += get_rex_value("dvaultproxy1"_n);
+        eos += get_rex_value(dmdvaults::legacy::vault);
 
         return sort==EOS.get_symbol() ? pair<asset, asset>{eos, deos} : pair<asset, asset>{deos, eos};
     }
@@ -169,12 +171,43 @@ namespace legacy {
 
 namespace multi {
 
-    const name id = "dmd.multi"_n;
-    const name code = "dmddappvault"_n;
-
-    //TODO: BG/DBG
     //see: https://eos.eosq.eosnation.io/tx/04e6dcf50e876ddadfdc1a95b30231eebf1437320d263d1b7f3cb7e04f3308b5
 
+    const name id = "dmd.multi"_n;
+    const name code = "dmddappvault"_n;
+    const name vault = "dvaultbgstak"_n;
+
+    const extended_symbol BG { symbol{"BG",4}, "bgbgbgbgbgbg"_n };
+    const extended_symbol DBG { symbol{"DBG",4}, "dvaultdtoken"_n };
+
+    /**
+     * ## STATIC `get_reserves`
+     *
+     * Get BG/DBG reserves from a vault contract
+     *
+     * ### params
+     *
+     * - `{symbol} sort` - symbol of a reserve that should go first
+     *
+     * ### example
+     *
+     * ```c++
+     * const auto [ reserve0, reserve1 ]  = dmdvaults::multi::get_reserves( {"BG",4} );
+     * // reserve0 => {"balance": "55988.4608 BG"}
+     * // reserve1 => {"55995.6259 DBG"}
+     * ```
+     */
+    static pair<asset, asset> get_reserves( const symbol sort )
+    {
+        check(sort==BG.get_symbol() || sort==DBG.get_symbol(), "sx.dmdvaults: Only BG/DBG pair available");
+
+        dmdvaults::reserves _reserves( DBG.get_contract(), DBG.get_symbol().code().raw() );
+
+        auto dbg = _reserves.get( DBG.get_symbol().code().raw(), "sx.dmdvaults: No DBG row in dvaultdtoken stat table" ).supply;
+        auto bg  = eosio::token::get_balance( BG.get_contract(), dmdvaults::multi::vault, BG.get_symbol().code() );
+
+        return sort==BG.get_symbol() ? pair<asset, asset>{bg, dbg} : pair<asset, asset>{bg, dbg};
+    }
 }
 
 
