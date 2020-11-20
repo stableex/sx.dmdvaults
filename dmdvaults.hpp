@@ -180,6 +180,23 @@ namespace multi {
     const extended_symbol BG { symbol{"BG",4}, "bgbgbgbgbgbg"_n };
     const extended_symbol DBG { symbol{"DBG",4}, "dvaultdtoken"_n };
 
+
+    struct [[eosio::table("stake")]] stake_row {
+        name        player;
+        asset       amount;
+
+        uint64_t primary_key() const { return player.value; }
+    };
+    typedef eosio::multi_index< "stake"_n, stake_row > stake;
+
+    struct [[eosio::table("resvwd")]] resvwd_row {
+        int64_t     id;
+        //table incomplete because we only need to check if there are any rows
+
+        uint64_t primary_key() const { return id; }
+    };
+    typedef eosio::multi_index< "resvwd"_n, resvwd_row > resvwd;
+
     /**
      * ## STATIC `get_reserves`
      *
@@ -207,6 +224,56 @@ namespace multi {
         auto bg  = eosio::token::get_balance( BG.get_contract(), dmdvaults::multi::vault, BG.get_symbol().code() );
 
         return sort==BG.get_symbol() ? pair<asset, asset>{bg, dbg} : pair<asset, asset>{bg, dbg};
+    }
+
+    /**
+     * ## STATIC `get_amount_out`
+     *
+     * Given an input amount of an asset and pair reserves, returns the output amount of the other asset
+     *
+     * ### params
+     *
+     * - `{uint64_t} amount_in` - amount input
+     * - `{uint64_t} reserve_in` - reserve input
+     * - `{uint64_t} reserve_out` - reserve output
+     * - `{uint64_t} fee` - trading fee (pips 1/10000)
+     *
+     * ### example
+     *
+     * ```c++
+     * // Inputs
+     * const uint64_t amount_in = 10000;
+     * const uint64_t reserve_in = 45851931234;
+     * const uint64_t reserve_out = 46851931234;
+     * const uint64_t fee = 5;
+     *
+     * // Calculation
+     * const uint64_t amount_out = dmdvaults::get_amount_out( amount_in, reserve_in, reserve_out, fee );
+     * // => 9996
+     * ```
+     */
+
+    static uint64_t get_amount_out( const uint64_t amount_in, const uint64_t reserve_in, const uint64_t reserve_out, const symbol sym_out, const uint64_t fee )
+    {
+        // checks
+        eosio::check(amount_in > 0, "sx.dmdvaults: INSUFFICIENT_INPUT_AMOUNT");
+        eosio::check(reserve_in > 0 && reserve_out > 0, "sx.dmdvaults: INSUFFICIENT_LIQUIDITY");
+
+        // calculations: no-fee quote, fee applied afterwards
+        auto amount_out = uniswap::quote(amount_in, reserve_in, reserve_out) * (10000 - fee) / 10000 + (fee>0?1:0); //+1 to account for rounding error
+
+        if(sym_out == BG.get_symbol()) {
+            dmdvaults::multi::stake _resvwd( "dmddappvault"_n, "dmddappvault"_n.value );
+            if(_resvwd.begin() != _resvwd.end()) return 0;  //reserved, so can't withdraw
+
+            dmdvaults::multi::stake _stake( "dividend.bg"_n, "dividend.bg"_n.value );
+            auto staked = _stake.get(dmdvaults::multi::vault.value, "No staked BG on dividend.bg").amount.amount;
+            auto balance  = eosio::token::get_balance( BG.get_contract(), dmdvaults::multi::vault, BG.get_symbol().code() ).amount;
+
+            if(amount_out > balance - staked) amount_out = 0;
+        }
+
+        return amount_out;
     }
 }
 
