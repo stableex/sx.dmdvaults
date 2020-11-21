@@ -191,7 +191,10 @@ namespace multi {
 
     struct [[eosio::table("resvwd")]] resvwd_row {
         int64_t     id;
-        //table incomplete because we only need to check if there are any rows
+        name        owner;
+        asset       damount;
+        asset       amount;
+        uint32_t    create_at;
 
         uint64_t primary_key() const { return id; }
     };
@@ -263,7 +266,8 @@ namespace multi {
         auto amount_out = uniswap::quote(amount_in, reserve_in, reserve_out) * (10000 - fee) / 10000 + (fee>0?1:0); //+1 to account for rounding error
 
         if(sym_out == BG.get_symbol()) {
-            dmdvaults::multi::stake _resvwd( "dmddappvault"_n, "dmddappvault"_n.value );
+
+            dmdvaults::multi::resvwd _resvwd( "dmddappvault"_n, "dmddappvault"_n.value );
             if(_resvwd.begin() != _resvwd.end()) return 0;  //reserved, so can't withdraw
 
             dmdvaults::multi::stake _stake( "dividend.bg"_n, "dividend.bg"_n.value );
