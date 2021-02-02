@@ -83,6 +83,7 @@ namespace legacy {
     const name id = "dmd.legacy"_n;
     const name code = "eosdmdvaults"_n;
     const name vault = "dvaultproxy1"_n;
+    const uint64_t min_amount = 10000;
 
     const extended_symbol DEOS { symbol{"DEOS",4}, "eosdmddtoken"_n };
 
@@ -265,16 +266,18 @@ namespace multi {
         // calculations: no-fee quote, fee applied afterwards
         auto amount_out = uniswap::quote(amount_in, reserve_in, reserve_out) * (10000 - fee) / 10000 + (fee>0?1:0); //+1 to account for rounding error
 
+        dmdvaults::multi::stake _stake( "dividend.bg"_n, "dividend.bg"_n.value );
+        auto it = _stake.find(dmdvaults::multi::vault.value);
+        if(it == _stake.end()) return 0;    //no deposit for dvaultbgstak
+        auto bg_deposited = it->amount;
+
         if(sym_out == BG.get_symbol()) {
 
+            auto balance  = eosio::token::get_balance( BG.get_contract(), dmdvaults::multi::vault, BG.get_symbol().code() ).amount;
             dmdvaults::multi::resvwd _resvwd( "dmddappvault"_n, "dmddappvault"_n.value );
             if(_resvwd.begin() != _resvwd.end()) return 0;  //reserved, so can't withdraw
 
-            dmdvaults::multi::stake _stake( "dividend.bg"_n, "dividend.bg"_n.value );
-            auto staked = _stake.get(dmdvaults::multi::vault.value, "No staked BG on dividend.bg").amount.amount;
-            auto balance  = eosio::token::get_balance( BG.get_contract(), dmdvaults::multi::vault, BG.get_symbol().code() ).amount;
-
-            if(amount_out > balance - staked) amount_out = 0;
+            if(amount_out > balance - bg_deposited.amount) amount_out = 0;
         }
 
         return amount_out;
