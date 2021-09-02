@@ -9,15 +9,6 @@ namespace dmdvaults {
     const name id = "dmdvaults"_n;
     const name code = "dmddappvault"_n;
 
-    struct [[eosio::table("stat")]] currencystat {
-        asset       supply;
-        asset       max_supply;
-        name        issuer;
-
-        uint64_t primary_key() const { return supply.symbol.code().raw(); }
-    };
-    typedef eosio::multi_index< "stat"_n, currencystat > reserves;
-
     /**
      * ## STATIC `get_fee`
      *
@@ -114,14 +105,10 @@ namespace legacy {
     };
     typedef eosio::multi_index< "rexpool"_n, rex_pool > rexpool;
 
-    static int64_t _EOS_value_amount = 0;
-
     //Get EOS equivalent for REX resources for {account} account
-
     static asset get_rex_value(const name& account) {
-        asset eos {_EOS_value_amount, EOS.get_symbol()};
 
-        if(eos.amount) return eos;  //already calculated _EOS_value_amount
+        asset eos {0, EOS.get_symbol()};
 
         dmdvaults::legacy::rexbal _rexbal( "eosio"_n, "eosio"_n.value );
         auto rexbalit = _rexbal.find(account.value);
@@ -133,7 +120,7 @@ namespace legacy {
 
         double_t price = static_cast<double_t>(pool.total_unlent.amount + pool.total_lent.amount) / pool.total_rex.amount;
 
-        eos.amount = _EOS_value_amount = rexbalit->rex_balance.amount * price;
+        eos.amount = rexbalit->rex_balance.amount * price;
 
         return eos;
     }
@@ -158,9 +145,8 @@ namespace legacy {
     static pair<asset, asset> get_reserves( const symbol sort )
     {
         check(sort==EOS.get_symbol() || sort==DEOS.get_symbol(), "sx.dmdvaults: Only EOS/DEOS pair available");
-        dmdvaults::reserves _reserves( DEOS.get_contract(), DEOS.get_symbol().code().raw() );
 
-        auto deos = _reserves.get( DEOS.get_symbol().code().raw(), "sx.dmdvaults: No DEOS row in eosdmddtoken stat table" ).supply;
+        const auto deos = eosio::token::get_supply( DEOS.get_contract(), DEOS.get_symbol().code());
         auto eos  = eosio::token::get_balance( EOS.get_contract(), dmdvaults::legacy::vault, EOS.get_symbol().code() );
 
         eos += get_rex_value(dmdvaults::legacy::vault);
@@ -222,10 +208,8 @@ namespace multi {
     {
         check(sort==BG.get_symbol() || sort==DBG.get_symbol(), "sx.dmdvaults: Only BG/DBG pair available");
 
-        dmdvaults::reserves _reserves( DBG.get_contract(), DBG.get_symbol().code().raw() );
-
-        auto dbg = _reserves.get( DBG.get_symbol().code().raw(), "sx.dmdvaults: No DBG row in dvaultdtoken stat table" ).supply;
-        auto bg  = eosio::token::get_balance( BG.get_contract(), dmdvaults::multi::vault, BG.get_symbol().code() );
+        const auto dbg = eosio::token::get_supply( DBG.get_contract(), DBG.get_symbol().code());
+        const auto bg  = eosio::token::get_balance( BG.get_contract(), dmdvaults::multi::vault, BG.get_symbol().code() );
 
         return sort==BG.get_symbol() ? pair<asset, asset>{bg, dbg} : pair<asset, asset>{bg, dbg};
     }
